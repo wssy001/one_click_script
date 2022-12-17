@@ -53,14 +53,14 @@ function showHeaderGreen(){
 }
 function showHeaderRed(){
     echo
-    green " =================================================="
+    red " =================================================="
     for parameter in "$@"
     do
         if [[ -n "${parameter}" ]]; then
-            green " ${parameter}"
+            red " ${parameter}"
         fi
     done
-    green " =================================================="
+    red " =================================================="
     echo
 }
 function showInfoGreen(){
@@ -319,6 +319,34 @@ function testLinuxPortUsage(){
 
 
 
+# 查看端口占用情况
+function checkPortUsage(){
+    # https://stackoverflow.com/questions/2013547/assigning-default-values-to-shell-variables-with-a-single-command-in-bash
+
+    portNum="${1:-80}"
+    # check port 80 is running
+    # http://www.letuknowit.com/post/98.html
+    # 不过，一般像下面这样写，多一个加号表明将连续出现的记录分隔符当做一个来处理
+
+    osPort80=$(netstat -tupln | awk -F '[ ]+' '$1=="tcp"||$1=="tcp6"{print $4}' | grep -w "${portNum}")
+
+    if [ -n "$osPort80" ]; then
+        process80=$(netstat -tupln | grep -w "${portNum}" | awk -F '[ ]+' '{print $7}')
+
+        showHeaderRed "检测到${portNum}端口被占用，占用进程为：${process80} "
+
+        if [[ ${portNum} == "80" ]] ; then
+            green " 如需要关闭 apache2 请运行如下命令: "
+            green " Run following command to stop apache2: "
+            green " ${sudoCmd} systemctl stop apache2 "
+            green " ${sudoCmd} systemctl disable apache2 "
+        fi
+
+
+        promptContinueOpeartion
+    fi
+
+}
 
 
 
@@ -429,7 +457,7 @@ function changeLinuxSSHPort(){
         green "设置成功, 请记住设置的端口号 ${osSSHLoginPortInput}!"
         green "登陆服务器命令: ssh -p ${osSSHLoginPortInput} root@111.111.111.your ip !"
     else
-        echo "输入的端口号错误! 范围: 22,1025~65534"
+        red "输入的端口号错误! 范围: 22,1025~65534. Exit !"
     fi
 }
 
@@ -487,9 +515,13 @@ function setLinuxDateZone(){
                 firewall-cmd --reload
             fi 
 
+            echo ""
+            echo "chrony sources:"
+
             chronyc sources
 
-            echo
+            echo ""
+            echo ""
         fi
         
     else
@@ -546,6 +578,9 @@ function installSoftDownload(){
 
         elif ! rpm -qa | grep -qw git; then
 		    ${osSystemPackage} -y install wget curl git unzip
+
+        elif ! rpm -qa | grep -qw unzip; then
+            ${osSystemPackage} -y install wget curl git unzip
 		fi
 	fi
 }
@@ -577,22 +612,32 @@ function installPackage(){
         if ! rpm -qa | grep -qw iperf3; then
 			${sudoCmd} ${osSystemPackage} install -y epel-release
 
-            ${osSystemPackage} install -y curl wget git unzip zip tar bind-utils htop net-tools
-            ${osSystemPackage} install -y xz jq redhat-lsb-core 
+            ${osSystemPackage} install -y curl wget git unzip zip tar
+            ${osSystemPackage} install -y redhat-lsb-core 
+            ${osSystemPackage} install -y bind-utils net-tools
+            ${osSystemPackage} install -y xz jq
             ${osSystemPackage} install -y iputils
-            ${osSystemPackage} install -y iperf3
+            ${osSystemPackage} install -y iperf3 
+            ${osSystemPackage} install -y htop 
 		fi
-
+        yum clean all
+        
         ${osSystemPackage} update -y
 
 
         # https://www.cyberciti.biz/faq/how-to-install-and-use-nginx-on-centos-8/
-        if  [[ ${osReleaseVersionNoShort} == "8" || ${osReleaseVersionNoShort} == "9" ]]; then
+        if  [[ ${osReleaseVersionNoShort} == "8" ]]; then
             ${sudoCmd} yum module -y reset nginx
             ${sudoCmd} yum module -y enable nginx:1.20
             ${sudoCmd} yum module list nginx
         fi
 
+        if  [[  ${osReleaseVersionNoShort} == "9" ]]; then
+            ${sudoCmd} yum module -y reset nginx
+            ${sudoCmd} yum module -y enable nginx:1.22
+            ${sudoCmd} yum module list nginx
+        fi
+        
     elif [ "$osRelease" == "ubuntu" ]; then
         
         # https://joshtronic.com/2018/12/17/how-to-install-the-latest-nginx-on-debian-and-ubuntu/
@@ -915,6 +960,11 @@ function installBBR2(){
 }
 
 
+function installSWAP(){
+    bash <(wget --no-check-certificate -qO- 'https://www.moerats.com/usr/shell/swap.sh')
+}
+
+
 
 
 
@@ -1011,7 +1061,7 @@ downloadFilenameTrojanGo="trojan-go-linux-amd64.zip"
 versionV2ray="4.45.2"
 downloadFilenameV2ray="v2ray-linux-64.zip"
 
-versionXray="1.5.5"
+versionXray="1.6.6-2"
 downloadFilenameXray="Xray-linux-64.zip"
 
 versionTrojanWeb="2.10.5"
@@ -1152,7 +1202,7 @@ function getV2rayVersion(){
     fi
 
     if [[ $1 == "xray" ]] ; then
-        versionXray=$(getGithubLatestReleaseVersion "XTLS/Xray-core")
+        #versionXray=$(getGithubLatestReleaseVersion "XTLS/Xray-core")
         echo "versionXray: ${versionXray}"
     fi
 
@@ -1203,7 +1253,7 @@ function getHTTPSCertificateCheckEmail(){
 }
 function getHTTPSCertificateInputEmail(){
     echo
-    read -r -p "请输入邮箱地址, 用于申请证书:" acmeSSLRegisterEmailInput
+    read -r -p "请输入邮箱地址, 用于申请SSL证书:" acmeSSLRegisterEmailInput
     getHTTPSCertificateCheckEmail "email" "${acmeSSLRegisterEmailInput}"
 }
 function getHTTPSCertificateInputGoogleEABKey(){
@@ -1327,7 +1377,10 @@ function getHTTPSCertificateWithAcme(){
     # 申请https证书
 	mkdir -p ${configSSLCertPath}
 	mkdir -p ${configWebsitePath}
-	curl https://get.acme.sh | sh
+
+    getHTTPSCertificateInputEmail
+
+	curl https://get.acme.sh | sh -s email=${acmeSSLRegisterEmailInput}
 
 
     echo
@@ -1343,14 +1396,14 @@ function getHTTPSCertificateWithAcme(){
     isDomainSSLFromLetInput=${isDomainSSLFromLetInput:-1}
     
     if [[ "$isDomainSSLFromLetInput" == "2" ]]; then
-        getHTTPSCertificateInputEmail
+        
         acmeSSLDays="179"
         acmeSSLServerName="buypass"
         echo
         ${configSSLAcmeScriptPath}/acme.sh --register-account --accountemail ${acmeSSLRegisterEmailInput} --server buypass
         
     elif [[ "$isDomainSSLFromLetInput" == "3" ]]; then
-        getHTTPSCertificateInputEmail
+        
         acmeSSLServerName="zerossl"
         echo
         ${configSSLAcmeScriptPath}/acme.sh --register-account -m ${acmeSSLRegisterEmailInput} --server zerossl
@@ -1359,7 +1412,7 @@ function getHTTPSCertificateWithAcme(){
         green " ================================================== "
         yellow " 请先按照如下链接申请 google Public CA  https://hostloc.com/thread-993780-1-1.html"
         yellow " 具体可参考 https://github.com/acmesh-official/acme.sh/wiki/Google-Public-CA"
-        getHTTPSCertificateInputEmail
+        
         acmeSSLServerName="google"
         getHTTPSCertificateInputGoogleEABKey
         getHTTPSCertificateInputGoogleEABId
@@ -1394,6 +1447,8 @@ function getHTTPSCertificateWithAcme(){
         
         if [ -z "$1" ]; then
  
+            checkPortUsage "80"
+
             green " ================================================== "
             green " 请选择 http 申请证书方式: 默认直接回车为 ${acmeDefaultText} "
             green " 1 standalone 模式, 适合没有安装Web服务器, 如已选择不安装Nginx 请选择此模式. 请确保80端口不被占用. 注意:三个月后续签时80端口被占用会导致续签失败!"
@@ -3025,6 +3080,7 @@ EOF
     ${sudoCmd} systemctl daemon-reload
     ${sudoCmd} systemctl start trojan${promptInfoTrojanName}.service
     ${sudoCmd} systemctl enable trojan${promptInfoTrojanName}.service
+
 
 
     # 设置 cron 定时任务
@@ -8296,6 +8352,9 @@ function start_menu(){
         ;;
         82 )
             installBBR2
+        ;;
+        83 )
+            installSWAP
         ;;
         84 )
             firewallForbiden
