@@ -317,8 +317,14 @@ function testLinuxPortUsage(){
         red " 关闭防火墙 ufw"
         ${sudoCmd} systemctl stop ufw
         ${sudoCmd} systemctl disable ufw
-        ufw disable
-        
+
+        if ! command -v ufw &> /dev/null; then
+            echo "ufw command could not be found"
+        else
+            ufw disable
+        fi
+
+
     elif [ "$osRelease" == "debian" ]; then
         $osSystemPackage update -y
     fi
@@ -361,7 +367,10 @@ function changeLinuxSSHPort(){
             fi
 
             # semanage port -l
-            semanage port -a -t ssh_port_t -p tcp ${osSSHLoginPortInput}
+            if command -v semanage &> /dev/null; then
+                semanage port -a -t ssh_port_t -p tcp ${osSSHLoginPortInput}
+            fi
+
             if command -v firewall-cmd &> /dev/null; then
                 firewall-cmd --permanent --zone=public --add-port=$osSSHLoginPortInput/tcp 
                 firewall-cmd --reload
@@ -373,8 +382,19 @@ function changeLinuxSSHPort(){
         fi
 
         if [ "$osRelease" == "ubuntu" ] || [ "$osRelease" == "debian" ] ; then
-            semanage port -a -t ssh_port_t -p tcp $osSSHLoginPortInput
-            ${sudoCmd} ufw allow $osSSHLoginPortInput/tcp
+            
+            if ! command -v semanage &> /dev/null; then
+                echo "semanage command could not be found"
+            else
+                semanage port -a -t ssh_port_t -p tcp $osSSHLoginPortInput
+            fi
+
+            if ! command -v ufw &> /dev/null; then
+                echo "ufw command could not be found"
+            else
+                ${sudoCmd} ufw allow $osSSHLoginPortInput/tcp
+            fi
+
 
             ${sudoCmd} service ssh restart
             ${sudoCmd} systemctl restart ssh
@@ -383,7 +403,7 @@ function changeLinuxSSHPort(){
         green "设置成功, 请记住设置的端口号 ${osSSHLoginPortInput}!"
         green "登陆服务器命令: ssh -p ${osSSHLoginPortInput} root@111.111.111.your ip !"
     else
-        echo "输入的端口号错误! 范围: 22,1025~65534"
+        red "输入的端口号错误! 范围: 22,1025~65534"
     fi
 }
 
@@ -3912,16 +3932,17 @@ function downgradeXray(){
     green " 1. 不降级 使用最新版本"
 
     if [[ "${isAirUniverseVersionInput}" == "1" || "${isAirUniverseVersionInput}" == "2" ]]; then
-        green " 2. 1.6.1"
-        green " 3. 1.6.0"
-        green " 4. 1.5.5"
-        green " 5. 1.5.4"
-        green " 6. 1.5.3"
+        green " 2. 1.7.3"
+        green " 3. 1.6.1"
+        green " 4. 1.6.0"
+        green " 5. 1.5.5"
+        green " 6. 1.5.4"
+        green " 7. 1.5.3"
     else
-        green " 7. 1.5.0"
-        green " 8. 1.4.5"
-        green " 9. 1.4.0"
-        green " 0. 1.3.1"
+        green " 8. 1.5.0"
+        green " 9. 1.4.5"
+        green " 10. 1.4.0"
+        green " 11. 1.3.1"
     fi
 
     echo
@@ -3932,31 +3953,35 @@ function downgradeXray(){
     downloadXrayUrl="https://github.com/XTLS/Xray-core/releases/download/v${downloadXrayVersion}/Xray-linux-64.zip"
 
     if [[ "${isXrayVersionInput}" == "2" ]]; then
-        downloadXrayVersion="1.6.1"
+        downloadXrayVersion="1.7.3"
 
     elif [[ "${isXrayVersionInput}" == "3" ]]; then
-        downloadXrayVersion="1.6.0"
+        downloadXrayVersion="1.6.1"
 
     elif [[ "${isXrayVersionInput}" == "4" ]]; then
-        downloadXrayVersion="1.5.5"
+        downloadXrayVersion="1.6.0"
 
     elif [[ "${isXrayVersionInput}" == "5" ]]; then
-        downloadXrayVersion="1.5.4"
+        downloadXrayVersion="1.5.5"
 
     elif [[ "${isXrayVersionInput}" == "6" ]]; then
-        downloadXrayVersion="1.5.3"
+        downloadXrayVersion="1.5.4"
 
     elif [[ "${isXrayVersionInput}" == "7" ]]; then
-        downloadXrayVersion="1.5.0"
+        downloadXrayVersion="1.5.3"
 
     elif [[ "${isXrayVersionInput}" == "8" ]]; then
-        downloadXrayVersion="1.4.5"
+        downloadXrayVersion="1.5.0"
 
     elif [[ "${isXrayVersionInput}" == "9" ]]; then
+        downloadXrayVersion="1.4.5"
+
+    elif [[ "${isXrayVersionInput}" == "10" ]]; then
         downloadXrayVersion="1.4.0"
 
-    elif [[ "${isXrayVersionInput}" == "0" ]]; then
+    elif [[ "${isXrayVersionInput}" == "11" ]]; then
         downloadXrayVersion="1.3.1"
+
     else
         echo
     fi
@@ -4055,7 +4080,9 @@ function installAirUniverse(){
         echo
     fi
 
-
+    # sed -i '/User=nobody/d' "/etc/systemd/system/xray.service"
+    # ${sudoCmd} systemctl daemon-reload
+    # chown root "/var/log/au/xr.log"
 
     if test -s ${configAirUniverseConfigFilePath}; then
 
@@ -4104,9 +4131,9 @@ EOM
 
             replaceAirUniverseConfigWARP "norestart"
             
-            chmod ugoa+rwx ${configSSLCertPath}/${configSSLCertFullchainFilename}
-            chmod ugoa+rwx ${configSSLCertPath}/${configSSLCertKeyFilename}
-            chmod ugoa+rwx ${configSSLCertPath}/*
+            chmod ugoa+rw ${configSSLCertPath}/${configSSLCertFullchainFilename}
+            chmod ugoa+rw ${configSSLCertPath}/${configSSLCertKeyFilename}
+            chmod ugoa+rw ${configSSLCertPath}/*
 
             # chown -R nobody:nogroup /var/log/v2ray
 
@@ -4284,11 +4311,11 @@ function replaceAirUniverseConfigWARP(){
     read -p "是否使用DNS解锁流媒体? 直接回车默认不解锁, 解锁请输入DNS服务器的IP地址:" isV2rayUnlockDNSInput
     isV2rayUnlockDNSInput=${isV2rayUnlockDNSInput:-n}
 
-    V2rayDNSUnlockText="AsIs"
+    V2rayDNSUnlockText="UseIPv4"
     v2rayConfigDNSInput=""
 
     if [[ "${isV2rayUnlockDNSInput}" == [Nn] ]]; then
-        V2rayDNSUnlockText="AsIs"
+        V2rayDNSUnlockText="UseIPv4"
     else
         V2rayDNSUnlockText="UseIP"
         read -r -d '' v2rayConfigDNSOutboundSettingsInput << EOM
@@ -4447,8 +4474,8 @@ EOM
 
     echo
     echo
-    yellow " 某大佬提供了可以解锁Netflix新加坡区的V2ray服务器, 不保证一直可用"
-    read -p "是否通过神秘力量解锁Netflix新加坡区? 直接回车默认不解锁, 请输入[y/N]:" isV2rayUnlockGoNetflixInput
+    yellow " 某老姨子提供了可以解锁Netflix新加坡区的V2ray服务器, 已失效"
+    read -p "是否通过老姨子解锁Netflix新加坡区? 直接回车默认不解锁, 请输入[y/N]:" isV2rayUnlockGoNetflixInput
     isV2rayUnlockGoNetflixInput=${isV2rayUnlockGoNetflixInput:-n}
 
     v2rayConfigRouteGoNetflixInput=""
@@ -4597,7 +4624,15 @@ EOM
             "protocol": "blackhole",
             "settings": {}
         },
-
+        {
+            "tag": "blocked",
+            "protocol": "blackhole",
+            "settings": {
+                "response": {
+                    "type": "http"
+                }
+            }
+        },
         ${v2rayConfigOutboundV2rayServerInput}
         ${v2rayConfigOutboundV2rayGoNetflixServerInput}
         {
@@ -4624,6 +4659,7 @@ EOM
         }      
     ],
     "routing": {
+        "domainStrategy": "IPOnDemand",
         "rules": [
             {
                 "inboundTag": [
@@ -4634,6 +4670,20 @@ EOM
             },
             ${xrayConfigRuleInput}
             ${v2rayConfigRouteGoNetflixInput}
+            {
+                "type": "field",
+                "domain": [
+                    "geosite:cn"
+                ],
+                "outboundTag": "IPv6_out"
+            },
+            {
+                "type": "field",
+                "ip": [
+                    "geoip:cn"
+                ],
+                "outboundTag": "IPv6_out"
+            },
             {
                 "type": "field",
                 "protocol": [
@@ -4693,8 +4743,8 @@ EOF
     fi
 
 
-    chmod ugoa+rwx ${configSSLCertPath}/${configSSLCertFullchainFilename}
-    chmod ugoa+rwx ${configSSLCertPath}/${configSSLCertKeyFilename}
+    chmod ugoa+rw ${configSSLCertPath}/${configSSLCertFullchainFilename}
+    chmod ugoa+rw ${configSSLCertPath}/${configSSLCertKeyFilename}
 
     # -z 为空
     if [[ -z $1 ]]; then
@@ -4717,6 +4767,15 @@ EOF
 
 
 
+
+function updateGeoIp(){
+    wget -O /usr/local/share/xray/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
+    wget -O /usr/local/share/xray/geosite.dat https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
+    
+    systemctl restart xray.service
+    airu restart
+
+}
 
 function manageAirUniverse(){
     echo -e ""
@@ -5199,6 +5258,7 @@ function start_menu(){
     green " 54. 配合 WARP (Wireguard) 使用IPV6 解锁 google人机验证和 Netflix等流媒体网站"
     green " 55. 升级或降级 Air-Universe 到 1.0.0 or 0.9.2, 降级 Xray 到 1.5或1.4"
     green " 56. 重新申请证书 并修改 Air-Universe 配置文件 ${configAirUniverseConfigFilePath}"
+    green " 58. 更新 geoip.dat 和 geosite.dat 文件"
     echo 
     green " 61. 单独申请域名SSL证书"
     echo
@@ -5253,6 +5313,7 @@ function start_menu(){
     green " 54. Using WARP (Wireguard) and IPV6 Unlock Netflix geo restriction and avoid Google reCAPTCHA"
     green " 55. Upgrade or downgrade Air-Universe to 1.0.0 or 0.9.2, downgrade Xray to 1.5 / 1.4"
     green " 56. Redo to get a free SSL certificate for domain name and modify Air-Universe config file ${configAirUniverseConfigFilePath}"
+    green " 58. Update geoip.dat and geosite.dat "
     echo 
     green " 61. Get a free SSL certificate for domain name only"
     echo
@@ -5379,6 +5440,9 @@ function start_menu(){
         ;;
         57 )
             installAiruAndNginx
+        ;;
+        58 )
+            updateGeoIp
         ;;
         61 )
             getHTTPSCertificateStep1

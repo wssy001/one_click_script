@@ -309,7 +309,11 @@ function testLinuxPortUsage(){
         ${sudoCmd} systemctl stop ufw
         ${sudoCmd} systemctl disable ufw
 
-        ufw disable
+        if ! command -v ufw &> /dev/null; then
+            echo "ufw command could not be found"
+        else
+            ufw disable
+        fi
         
     elif [ "$osRelease" == "debian" ]; then
         $osSystemPackage update -y
@@ -436,7 +440,10 @@ function changeLinuxSSHPort(){
             fi
 
             # semanage port -l
-            semanage port -a -t ssh_port_t -p tcp ${osSSHLoginPortInput}
+            if command -v semanage &> /dev/null; then
+                semanage port -a -t ssh_port_t -p tcp ${osSSHLoginPortInput}
+            fi
+
             if command -v firewall-cmd &> /dev/null; then
                 firewall-cmd --permanent --zone=public --add-port=$osSSHLoginPortInput/tcp 
                 firewall-cmd --reload
@@ -447,8 +454,17 @@ function changeLinuxSSHPort(){
         fi
 
         if [ "$osRelease" == "ubuntu" ] || [ "$osRelease" == "debian" ] ; then
-            semanage port -a -t ssh_port_t -p tcp $osSSHLoginPortInput
-            ${sudoCmd} ufw allow $osSSHLoginPortInput/tcp
+            if ! command -v semanage &> /dev/null; then
+                echo "semanage command could not be found"
+            else
+                semanage port -a -t ssh_port_t -p tcp $osSSHLoginPortInput
+            fi
+
+            if ! command -v ufw &> /dev/null; then
+                echo "ufw command could not be found"
+            else
+                ${sudoCmd} ufw allow $osSSHLoginPortInput/tcp
+            fi
 
             ${sudoCmd} service ssh restart
             ${sudoCmd} systemctl restart ssh
@@ -457,7 +473,7 @@ function changeLinuxSSHPort(){
         green "设置成功, 请记住设置的端口号 ${osSSHLoginPortInput}!"
         green "登陆服务器命令: ssh -p ${osSSHLoginPortInput} root@111.111.111.your ip !"
     else
-        red "输入的端口号错误! 范围: 22,1025~65534. Exit !"
+        red "输入的端口号错误! 范围: 22,1025~65534"
     fi
 }
 
@@ -879,7 +895,7 @@ function vps_netflix_jin(){
 
 
 function vps_netflixgo(){
-    wget -qN --no-check-certificate -O netflixGo https://github.com/sjlleo/netflix-verify/releases/download/v3.1.0/nf_linux_amd64 && chmod +x ./netflixGo && ./netflixGo
+    wget -qN --no-check-certificate -O netflixGo https://github.com/sjlleo/netflix-verify/releases/download/v3.1.0-1/nf_linux_amd64 && chmod +x ./netflixGo && ./netflixGo
     # wget -qN --no-check-certificate -O netflixGo https://github.com/sjlleo/netflix-verify/releases/download/2.61/nf_2.61_linux_amd64 && chmod +x ./netflixGo && ./netflixGo -method full
     echo
     echo
@@ -1061,7 +1077,7 @@ downloadFilenameTrojanGo="trojan-go-linux-amd64.zip"
 versionV2ray="4.45.2"
 downloadFilenameV2ray="v2ray-linux-64.zip"
 
-versionXray="1.6.6-2"
+versionXray="1.7.2"
 downloadFilenameXray="Xray-linux-64.zip"
 
 versionTrojanWeb="2.10.5"
@@ -1178,6 +1194,7 @@ function getGithubLatestReleaseVersion(){
     wget --no-check-certificate -qO- https://api.github.com/repos/$1/tags | grep 'name' | cut -d\" -f4 | head -1 | cut -b 2-
 }
 
+
 function getV2rayVersion(){
     # https://github.com/trojan-gfw/trojan/releases/download/v1.16.0/trojan-1.16.0-linux-amd64.tar.xz
 
@@ -1187,7 +1204,7 @@ function getV2rayVersion(){
         echo
         green " ================================================== "
         green " 请选择 V2ray 的版本, 默认直接回车为 稳定版4.45.2 (推荐)"
-        green " 选否则安装最新版的 V2ray 5.1.0 User Preview"
+        green " 选否则安装最新版的 V2ray 5.3.0 User Preview"
         echo
         read -r -p "是否安装稳定版V2ray? 默认直接回车为稳定版4.45.2, 请输入[Y/n]:" isInstallXrayVersionInput
         isInstallXrayVersionInput=${isInstallXrayVersionInput:-Y}
@@ -1202,7 +1219,7 @@ function getV2rayVersion(){
     fi
 
     if [[ $1 == "xray" ]] ; then
-        #versionXray=$(getGithubLatestReleaseVersion "XTLS/Xray-core")
+        versionXray=$(getGithubLatestReleaseVersion "XTLS/Xray-core")
         echo "versionXray: ${versionXray}"
     fi
 
@@ -1664,6 +1681,24 @@ function compareRealIpWithLocalIp(){
 
 function getHTTPSCertificateStep1(){
     
+    echo
+    green " ================================================== "
+    green " 请输入证书要放置的路径:  默认为${configSSLCertPath} "
+    yellow " 自定义证书路径可能会导致安装失败 仅供高手使用 "
+    yellow " 自定义证书路径需要预先创建好, 否则会使用默认路径${configSSLCertPath} "
+    echo
+    read -r -p "请输入证书路径 默认直接回车为${configSSLCertPath}" configSSLFilePath
+    configSSLFilePath=${configSSLFilePath:-${configSSLCertPath}}
+    if [ -z "${configSSLFilePath}" ]; then
+        configSSLFilePath="${configSSLCertPath}"
+        red " 输入的自定义证书路径为空, 将使用默认路径${configSSLCertPath} "
+    fi
+    if [ ! -d "${configSSLFilePath}" ]; then
+        configSSLFilePath="${configSSLCertPath}"
+        red " 输入的自定义证书路径为不存在, 将使用默认路径${configSSLCertPath} "
+    fi
+    configSSLCertPath="${configSSLFilePath}"
+
     echo
     green " ================================================== "
     yellow " 请输入解析到本VPS的域名 例如 www.xxx.com: (此步骤请关闭CDN后和nginx后安装 避免80端口占用导致申请证书失败)"
@@ -2227,6 +2262,8 @@ EOF
 
 function removeNginx(){
 
+    green " ================================================== "
+    green " Are you sure to remove Nginx ? "
     echo
     read -r -p "是否确认卸载Nginx? 直接回车默认卸载, 请输入[Y/n]:" isRemoveNginxServerInput
     isRemoveNginxServerInput=${isRemoveNginxServerInput:-Y}
@@ -2326,7 +2363,7 @@ configNginxSNIDomainWebsite=""
 configNginxSNIDomainV2ray=""
 configNginxSNIDomainTrojan=""
 
-configSSLCertPath="${configWebsiteFatherPath}/cert"
+
 configNginxSNIDomainTrojanCertPath="${configWebsiteFatherPath}/cert/nginxsni/trojan"
 configNginxSNIDomainV2rayCertPath="${configWebsiteFatherPath}/cert/nginxsni/v2ray"
 configNginxSNIDomainWebsiteCertPath="${configWebsiteFatherPath}/cert/nginxsni/web"
@@ -2425,7 +2462,7 @@ function installTrojanV2rayWithNginx(){
 
     stopServiceNginx
     testLinuxPortUsage
-    installPackage
+    # installPackage
 
     echo
     if [ "$1" = "v2ray" ]; then
@@ -2640,8 +2677,9 @@ function getTrojanGoVersion(){
         promptInfoTrojanName="-go"
 
     else
-        #versionTrojanGo=$(getGithubLatestReleaseVersion "Potterli20/trojan-go-fork")
-        versionTrojanGo="V2022.10.17"
+        # https://github.com/Potterli20/trojan-go-fork/releases/download/V2023.03.08/trojan-go-fork-linux-amd64.zip
+        versionTrojanGo=$(getGithubLatestReleaseVersion "Potterli20/trojan-go-fork")
+        # versionTrojanGo="V2023.03.08"
         echo "versionTrojanGo: ${versionTrojanGo}"
         configTrojanBaseVersion=${versionTrojanGo}
         configTrojanBasePath="${configTrojanGoPath}"
@@ -2686,8 +2724,12 @@ function downloadTrojanBin(){
         if [[ ${osArchitecture} == "arm64" ]] ; then
             downloadFilenameTrojanGo="trojan-go-fork-linux-armv8.zip"
         fi
-        # https://github.com/Potterli20/trojan-go-fork/releases/download/V2022.10.17/trojan-go-fork-linux-amd64.zip
-        downloadAndUnzip "https://github.com/Potterli20/trojan-go-fork/releases/download/${versionTrojanGo}/${downloadFilenameTrojanGo}" "${configTrojanBasePath}" "${downloadFilenameTrojanGo}"
+
+        # https://github.com/Potterli20/trojan-go-fork/releases/download/V2023.02.15/trojan-go-fork-linux-arm.zip
+        # https://github.com/Potterli20/trojan-go-fork/releases/download/V2023.02.15/trojan-go-fork-linux-armv8.zip
+        # https://github.com/Potterli20/trojan-go-fork/releases/download/V2023.03.08/trojan-go-fork-linux-amd64.zip
+
+        downloadAndUnzip "https://github.com/Potterli20/trojan-go-fork/releases/download/V${versionTrojanGo}/${downloadFilenameTrojanGo}" "${configTrojanBasePath}" "${downloadFilenameTrojanGo}"
         mv -f ${configTrojanBasePath}/trojan-go-fork ${configTrojanBasePath}/trojan-go
     fi
 
@@ -2737,8 +2779,8 @@ function installTrojanServer(){
     green " 3 修改版 Trojan-go 支持 websocket by fregie (support websocket)"
     green " 4 修改版 Trojan-go 支持模拟浏览器指纹 支持 websocket by Potterli20 (support websocket)"
     echo
-    read -r -p "请选择哪种 Trojan ? 直接回车默认选4, 请输入纯数字:" isTrojanTypeInput
-    isTrojanTypeInput=${isTrojanTypeInput:-4}
+    read -r -p "请选择哪种 Trojan ? 直接回车默认选2, 请输入纯数字:" isTrojanTypeInput
+    isTrojanTypeInput=${isTrojanTypeInput:-2}
 
     if [[ "${isTrojanTypeInput}" == "1" ]]; then
         trojanInstallType="1"
@@ -3258,12 +3300,12 @@ function removeTrojan(){
     else
         red " 系统没有安装 Trojan / Trojan-go, 退出卸载"
         red " Trojan or Trojan-go not install, exit"
-        exit
     fi
 
     echo
     green " ================================================== "
     green " Are you sure to uninstall Trojan${promptInfoTrojanName} ? "
+    echo
     read -r -p "是否确认卸载 Trojan${promptInfoTrojanName}? 直接回车默认卸载, 请输入[Y/n]:" isRemoveTrojanServerInput
     isRemoveTrojanServerInput=${isRemoveTrojanServerInput:-Y}
 
@@ -3627,7 +3669,7 @@ EOM
 fi
 
     echo
-    green " 某老姨子提供了可以解锁Netflix新加坡区的服务器, 不保证一直可用"
+    green " 某老姨子提供了可以解锁Netflix新加坡区的V2ray服务器, 已失效"
     echo
     read -r -p "是否通过老姨子解锁Netflix新加坡区? 直接回车默认不解锁, 请输入[y/N]:" isV2rayUnlockGoNetflixInput
     isV2rayUnlockGoNetflixInput=${isV2rayUnlockGoNetflixInput:-n}
@@ -3669,9 +3711,14 @@ EOM
             "tag": "direct"
         },
         {
+            "tag": "blocked",
             "protocol": "blackhole",
-            "tag": "block"
-        },        
+            "settings": {
+                "response": {
+                    "type": "http"
+                }
+            }
+        },      
         {
             "tag": "GoNetflix",
             "protocol": "vmess",
@@ -3908,13 +3955,16 @@ function removeShadowsocks(){
 function downloadV2rayXrayBin(){
     if [ -z $1 ]; then
         tempDownloadV2rayPath="${configV2rayPath}"
-    elif [ $1 = "shadowsocks" ]; then
+    elif [ "$1" = "shadowsocks" ]; then
         isXray="yes"
         tempDownloadV2rayPath="${configSSXrayPath}"
 
     else
-        tempDownloadV2rayPath="${configDownloadTempPath}/upgrade/${promptInfoXrayName}"
+        tempDownloadV2rayPath="${configV2rayPath}/upgrade/${promptInfoXrayName}"
     fi
+
+    mkdir -p "${tempDownloadV2rayPath}"
+    cd "${tempDownloadV2rayPath}" || exit
 
     if [ "$isXray" = "no" ] ; then
         # https://github.com/v2fly/v2ray-core/releases/download/v4.41.1/v2ray-linux-64.zip
@@ -3942,6 +3992,17 @@ function downloadV2rayXrayBin(){
 
         downloadAndUnzip "https://github.com/XTLS/Xray-core/releases/download/v${versionXray}/${downloadFilenameXray}" "${tempDownloadV2rayPath}" "${downloadFilenameXray}"
     fi
+
+    if [ "$1" = "upgrade" ]; then
+        if [ "$isXray" = "no" ]; then
+            mv -f ${configV2rayPath}/upgrade/${promptInfoXrayName}/v2ctl ${configV2rayPath}
+        fi
+
+        mv -f ${configV2rayPath}/upgrade/${promptInfoXrayName}/${promptInfoXrayName} ${configV2rayPath}
+        mv -f ${configV2rayPath}/upgrade/${promptInfoXrayName}/geoip.dat ${configV2rayPath}
+        mv -f ${configV2rayPath}/upgrade/${promptInfoXrayName}/geosite.dat ${configV2rayPath}
+    fi
+
 }
 
 
@@ -4269,6 +4330,11 @@ function generateVLessImportLink(){
             configV2rayVlessXtlsFlow="xtls&flow=xtls-rprx-direct"
             configV2rayVlessXtlsFlowShowInfo="xtls-rprx-direct"
         fi
+        if [[ "${configV2rayWorkingMode}" == "vlessTCPVision" ]]; then
+            configV2rayVlessXtlsFlow="tls&flow=xtls-rprx-vision"
+            configV2rayVlessXtlsFlowShowInfo="xtls-rprx-vision"
+        fi
+
 
         if [[ "$configV2rayWorkingMode" == "vlessgRPC" ]]; then
             cat > ${configV2rayVlessImportLinkFile1Path} <<-EOF
@@ -4444,7 +4510,7 @@ function installV2ray(){
     green " =================================================="    
     echo
 
-    if [[ ( $configV2rayWorkingMode == "trojan" ) || ( $configV2rayWorkingMode == "vlessTCPVmessWS" ) || ( $configV2rayWorkingMode == "vlessTCPWS" ) || ( $configV2rayWorkingMode == "vlessTCPWSgRPC" ) || ( $configV2rayWorkingMode == "vlessTCPWSTrojan" ) || ( $configV2rayWorkingMode == "sni" ) ]]; then
+    if [[ ( $configV2rayWorkingMode == "trojan" ) || ( $configV2rayWorkingMode == "vlessTCPVmessWS" ) || ( $configV2rayWorkingMode == "vlessTCPWS" ) || ( $configV2rayWorkingMode == "vlessTCPWSTrojan" ) || ( $configV2rayWorkingMode == "sni" ) ]]; then
         echo
         green " 是否使用XTLS代替TLS加密, XTLS是Xray特有的加密方式, 速度更快, 默认使用TLS加密"
         green " 由于V2ray不支持XTLS, 如果选择XTLS加密将使用Xray内核提供服务"
@@ -4465,6 +4531,10 @@ function installV2ray(){
                 isXray="yes"
             fi        
         fi
+    elif [[ $configV2rayWorkingMode == "vlessTCPVision" ]]; then
+            promptInfoXrayName="xray"
+            isXray="yes"
+            configV2rayIsTlsShowInfo="tls"
     else
         read -r -p "是否使用Xray内核? 直接回车默认为V2ray内核, 请输入[y/N]:" isV2rayOrXrayCoreInput
         isV2rayOrXrayCoreInput=${isV2rayOrXrayCoreInput:-n}
@@ -4593,6 +4663,36 @@ EOM
 
 
 
+    echo
+    echo
+    green " =================================================="
+    yellow " 是否屏蔽回国流量, 根据 geosite:cn 和 geoip:cn 规则判断是否回国流量"
+    echo
+    green " 1. 屏蔽回国流量"
+    green " 2. 不屏蔽回国流量"
+    green " 3. 回国流量走 WARP IPv6 解锁"
+    echo
+    green " 默认选1 屏蔽回国流量. 选择3 需要安装好 Wireguard 与 Cloudflare WARP, 可重新运行本脚本选择第一项安装".
+    red " 推荐先安装 Wireguard 与 Cloudflare WARP 后,再安装v2ray或xray. 实际上先安装v2ray或xray, 后安装Wireguard 与 Cloudflare WARP也没问题"
+    echo
+    read -p "请输入? 直接回车默认选1, 请输入纯数字:" isV2rayBlockChinaSiteInput
+    isV2rayBlockChinaSiteInput=${isV2rayBlockChinaSiteInput:-1}
+    
+    V2rayBlockChinaSiteRuleText="blocked"
+
+
+    if [[ $isV2rayBlockChinaSiteInput == "1" ]]; then
+        V2rayBlockChinaSiteRuleText="blocked"
+
+    elif [[ $isV2rayBlockChinaSiteInput == "2" ]]; then
+        V2rayBlockChinaSiteRuleText="IPv4_out"
+
+    else
+        V2rayBlockChinaSiteRuleText="IPv6_out"
+
+    fi
+
+
 
 
 
@@ -4628,11 +4728,11 @@ EOM
     read -p "是否使用DNS解锁流媒体? 直接回车默认不解锁, 解锁请输入DNS服务器的IP地址:" isV2rayUnlockDNSInput
     isV2rayUnlockDNSInput=${isV2rayUnlockDNSInput:-n}
 
-    V2rayDNSUnlockText="AsIs"
+    V2rayDNSUnlockText="UseIPv4"
     v2rayConfigDNSInput=""
 
     if [[ "${isV2rayUnlockDNSInput}" == [Nn] ]]; then
-        V2rayDNSUnlockText="AsIs"
+        V2rayDNSUnlockText="UseIPv4"
     else
         V2rayDNSUnlockText="UseIP"
         read -r -d '' v2rayConfigDNSInput << EOM
@@ -4777,7 +4877,7 @@ EOM
 
 
     echo
-    yellow " 某老姨子提供了可以解锁Netflix新加坡区的服务器, 不保证一直可用"
+    yellow " 某老姨子提供了可以解锁Netflix新加坡区的V2ray服务器, 已失效"
     read -p "是否通过老姨子解锁Netflix新加坡区? 直接回车默认不解锁, 请输入[y/N]:" isV2rayUnlockGoNetflixInput
     isV2rayUnlockGoNetflixInput=${isV2rayUnlockGoNetflixInput:-n}
 
@@ -4864,6 +4964,7 @@ EOM
 
         read -r -d '' v2rayConfigRouteInput << EOM
     "routing": {
+        "domainStrategy": "IPOnDemand",
         "rules": [
             ${v2rayConfigRouteGoNetflixInput}
             {
@@ -4871,6 +4972,20 @@ EOM
                 "outboundTag": "${V2rayUnlockVideoSiteOutboundTagText}",
                 "domain": [${V2rayUnlockVideoSiteRuleText}] 
             },
+            {
+                "type": "field",
+                "domain": [
+                    "geosite:cn"
+                ],
+                "outboundTag": "${V2rayBlockChinaSiteRuleText}"
+            },
+            {
+                "type": "field",
+                "ip": [
+                    "geoip:cn"
+                ],
+                "outboundTag": "${V2rayBlockChinaSiteRuleText}"
+            },           
             {
                 "type": "field",
                 "outboundTag": "IPv4_out",
@@ -4912,6 +5027,7 @@ EOM
         
         read -r -d '' v2rayConfigRouteInput << EOM
     "routing": {
+        "domainStrategy": "IPOnDemand",
         "rules": [
             ${v2rayConfigRouteGoNetflixInput}
             {
@@ -4923,6 +5039,20 @@ EOM
                 "type": "field",
                 "outboundTag": "${V2rayUnlockVideoSiteOutboundTagText}",
                 "domain": [${V2rayUnlockVideoSiteRuleText}] 
+            },
+            {
+                "type": "field",
+                "domain": [
+                    "geosite:cn"
+                ],
+                "outboundTag": "${V2rayBlockChinaSiteRuleText}"
+            },
+            {
+                "type": "field",
+                "ip": [
+                    "geoip:cn"
+                ],
+                "outboundTag": "${V2rayBlockChinaSiteRuleText}"
             },
             {
                 "type": "field",
@@ -4947,7 +5077,11 @@ EOM
         {
             "tag": "blocked",
             "protocol": "blackhole",
-            "settings": {}
+            "settings": {
+                "response": {
+                    "type": "http"
+                }
+            }
         },
         {
             "tag":"IPv6_out",
@@ -5184,6 +5318,20 @@ EOM
                     { "id": "${v2rayPassword8}", "flow": "xtls-rprx-direct", "level": 0, "email": "password18@gmail.com" },
                     { "id": "${v2rayPassword9}", "flow": "xtls-rprx-direct", "level": 0, "email": "password19@gmail.com" },
                     { "id": "${v2rayPassword10}", "flow": "xtls-rprx-direct", "level": 0, "email": "password20@gmail.com" }
+
+EOM
+    elif [[ "${configV2rayWorkingMode}" == "vlessTCPVision" ]]; then
+    read -r -d '' v2rayConfigUserpasswordInput << EOM
+                    { "id": "${v2rayPassword1}", "flow": "xtls-rprx-vision", "level": 0, "email": "password11@gmail.com" },
+                    { "id": "${v2rayPassword2}", "flow": "xtls-rprx-vision", "level": 0, "email": "password12@gmail.com" },
+                    { "id": "${v2rayPassword3}", "flow": "xtls-rprx-vision", "level": 0, "email": "password13@gmail.com" },
+                    { "id": "${v2rayPassword4}", "flow": "xtls-rprx-vision", "level": 0, "email": "password14@gmail.com" },
+                    { "id": "${v2rayPassword5}", "flow": "xtls-rprx-vision", "level": 0, "email": "password15@gmail.com" },
+                    { "id": "${v2rayPassword6}", "flow": "xtls-rprx-vision", "level": 0, "email": "password16@gmail.com" },
+                    { "id": "${v2rayPassword7}", "flow": "xtls-rprx-vision", "level": 0, "email": "password17@gmail.com" },
+                    { "id": "${v2rayPassword8}", "flow": "xtls-rprx-vision", "level": 0, "email": "password18@gmail.com" },
+                    { "id": "${v2rayPassword9}", "flow": "xtls-rprx-vision", "level": 0, "email": "password19@gmail.com" },
+                    { "id": "${v2rayPassword10}", "flow": "xtls-rprx-vision", "level": 0, "email": "password20@gmail.com" }
 
 EOM
 
@@ -5637,8 +5785,62 @@ EOM
     ],
 EOM
 
+    elif [[ "$configV2rayWorkingMode" == "vlessTCPVision" ]]; then
 
-    elif [[ "$configV2rayWorkingMode" == "vlessTCPWSgRPC" || "$configV2rayWorkingMode" == "sni" ]]; then
+        read -r -d '' v2rayConfigInboundInput << EOM
+    "inbounds": [
+        {
+            "port": ${configV2rayPort},
+            "protocol": "${configV2rayProtocol}",
+            "settings": {
+                "clients": [
+                    ${v2rayConfigUserpasswordInput}
+                ],
+                "decryption": "none",
+                "fallbacks": [
+                    {
+                        "dest": 80
+                    }
+                ]
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "security": "${configV2rayIsTlsShowInfo}",
+                "${configV2rayIsTlsShowInfo}Settings": {
+                    "rejectUnknownSni": true,
+                    "minVersion": "1.2",
+                    "certificates": [
+                        {
+                            "certificateFile": "${configSSLCertPath}/$configSSLCertFullchainFilename",
+                            "keyFile": "${configSSLCertPath}/$configSSLCertKeyFilename"
+                        }
+                    ]
+                }
+            },
+            "sniffing": {
+                "enabled": true,
+                "destOverride": [
+                    "http",
+                    "tls"
+                ]
+            }
+        }
+
+        ${v2rayConfigAdditionalPortInput}
+    ],
+    "policy": {
+        "levels": {
+            "0": {
+                "handshake": 5, 
+                "connIdle": 360
+            }
+        }
+    },    
+EOM
+
+
+
+    elif [[ "$configV2rayWorkingMode" == "sni" ]]; then
 
         read -r -d '' v2rayConfigInboundInput << EOM
     "inbounds": [
@@ -6307,7 +6509,34 @@ vless://${v2rayPassword1UrlEncoded}@${configSSLDomain}:${configV2rayPortShowInfo
 
 EOF
 
-    elif [[ "$configV2rayWorkingMode" == "vlessTCPWSgRPC" || "$configV2rayWorkingMode" == "sni" ]]; then
+    elif [[ "$configV2rayWorkingMode" == "vlessTCPVision" ]]; then
+
+    cat > ${configV2rayPath}/clientConfig.json <<-EOF
+VLess运行在${configV2rayPortShowInfo}端口 (VLess-TCP-XTLS Vision) 不支持CDN
+
+=========== ${promptInfoXrayInstall}客户端 VLess-TCP-XTLS Vision 配置参数 =============
+{
+    协议: VLess,
+    地址: ${configSSLDomain},
+    端口: ${configV2rayPort},
+    uuid: ${v2rayPassword1},
+    额外id: 0,  // AlterID 如果是Vless协议则不需要该项
+    流控flow: ${configV2rayVlessXtlsFlowShowInfo},
+    加密方式: none, 
+    传输协议: tcp ,
+    websocket路径:无,
+    底层传输协议: ${configV2rayIsTlsShowInfo},
+    fingerprint: chrome,
+    别名:自己起个任意名称
+}
+
+导入链接 Vless 格式:
+${v2rayVlessLinkQR1}
+
+
+EOF
+
+    elif [[ "$configV2rayWorkingMode" == "sni" ]]; then
 
     cat > ${configV2rayPath}/clientConfig.json <<-EOF
 VLess运行在${configV2rayPortShowInfo}端口 (VLess-TCP-TLS) + (VLess-WS-TLS) + (VLess-gRPC-TLS)支持CDN
@@ -6592,6 +6821,8 @@ EOF
 
 function removeV2ray(){
 
+    green " ================================================== "
+    green " Are you sure to remove V2ray or Xray ? "
     echo
     read -r -p "是否确认卸载 V2ray 或 Xray? 直接回车默认卸载, 请输入[Y/n]:" isRemoveV2rayServerInput
     isRemoveV2rayServerInput=${isRemoveV2rayServerInput:-Y}
@@ -6693,13 +6924,7 @@ function upgradeV2ray(){
 
         downloadV2rayXrayBin "upgrade"
 
-        if [ "$isXray" = "no" ] ; then
-            mv -f ${configDownloadTempPath}/upgrade/${promptInfoXrayName}/v2ctl ${configV2rayPath}
-        fi
 
-        mv -f ${configDownloadTempPath}/upgrade/${promptInfoXrayName}/${promptInfoXrayName} ${configV2rayPath}
-        mv -f ${configDownloadTempPath}/upgrade/${promptInfoXrayName}/geoip.dat ${configV2rayPath}
-        mv -f ${configDownloadTempPath}/upgrade/${promptInfoXrayName}/geosite.dat ${configV2rayPath}
 
         ${sudoCmd} chmod +x ${configV2rayPath}/${promptInfoXrayName}
 
@@ -7020,7 +7245,7 @@ function removeXUI(){
     /usr/bin/x-ui
 }
 
-
+chmod
 function installV2rayUI(){
 
     stopServiceNginx
@@ -8093,7 +8318,7 @@ function start_menu(){
     if [[ ${configLanguage} == "cn" ]] ; then
 
     green " ===================================================================================================="
-    green " Trojan-go V2ray Xray 一键安装脚本 | 2022-10-23 | 系统支持：centos7+ / debian9+ / ubuntu16.04+"
+    green " Trojan-go V2ray Xray 一键安装脚本 | 2023-3-10 | 系统支持：centos7+ / debian9+ / ubuntu16.04+"
     green " ===================================================================================================="
     green " 1. 安装linux内核 bbr plus, 安装WireGuard, 用于解锁 Netflix 限制和避免弹出 Google reCAPTCHA 人机验证"
     echo
@@ -8111,7 +8336,7 @@ function start_menu(){
     green " 13. 安装 v2ray或xray (VLess-TCP-[TLS/XTLS])+(VMess-TCP-TLS)+(VMess-WS-TLS) 支持CDN, 可选安装nginx, VLess运行在443端口"
     green " 14. 安装 v2ray或xray (VLess-gRPC-TLS) 支持CDN, 可选安装nginx, VLess运行在443端口"
     green " 15. 安装 v2ray或xray (VLess-TCP-[TLS/XTLS])+(VLess-WS-TLS) 支持CDN, 可选安装nginx, VLess运行在443端口"
-    #green " 16. 安装 v2ray或xray (VLess-TCP-[TLS/XTLS])+(VLess-WS-TLS)+(VLess-gRPC-TLS) 支持CDN, 可选安装nginx, VLess运行在443端口" 
+    green " 16. 安装 v2ray或xray (VLess-TCP-XTLS Vision)) 不支持CDN, 可选安装nginx, VLess运行在443端口" 
     green " 17. 安装 v2ray或xray (VLess-TCP-[TLS/XTLS])+(VLess-WS-TLS)+xray自带的trojan, 支持CDN, 可选安装nginx, VLess运行在443端口"  
     green " 18. 升级 v2ray或xray 到最新版本"
     red " 19. 卸载 v2ray或xray 和 nginx"
@@ -8143,7 +8368,7 @@ function start_menu(){
 
 
     green " ===================================================================================================="
-    green " Trojan-go V2ray Xray Installation | 2022-10-23 | OS support: centos7+ / debian9+ / ubuntu16.04+"
+    green " Trojan-go V2ray Xray Installation | 2023-3-10 | OS support: centos7+ / debian9+ / ubuntu16.04+"
     green " ===================================================================================================="
     green " 1. Install linux kernel,  bbr plus kernel, WireGuard and Cloudflare WARP. Unlock Netflix geo restriction and avoid Google reCAPTCHA"
     echo
@@ -8161,7 +8386,7 @@ function start_menu(){
     green " 13. Install v2ray/xray (VLess-TCP-[TLS/XTLS])+(VMess-TCP-TLS)+(VMess-WS-TLS), support CDN, nginx is optional, VLess running at 443 port serve TLS"
     green " 14. Install v2ray/xray (VLess-gRPC-TLS) support CDN, nginx is optional, VLess running at 443 port serve TLS"
     green " 15. Install v2ray/xray (VLess-TCP-[TLS/XTLS])+(VLess-WS-TLS) support CDN, nginx is optional, VLess running at 443 port serve TLS"
-
+    green " 16. Install v2ray/xray (VLess-TCP-XTLS Vision) not support CDN, nginx is optional, VLess running at 443 port serve TLS"
     green " 17. Install v2ray/xray (VLess-TCP-[TLS/XTLS])+(VLess-WS-TLS)+(xray's trojan), support CDN, nginx is optional, VLess running at 443 port serve TLS"
     green " 18. Upgrade v2ray/xray to latest version"
     red " 19. Remove v2ray/xray and nginx"
@@ -8247,7 +8472,7 @@ function start_menu(){
         ;;
         16 )
             configInstallNginxMode="noSSL"
-            configV2rayWorkingMode="vlessTCPWSgRPC"
+            configV2rayWorkingMode="vlessTCPVision"
             installTrojanV2rayWithNginx "v2ray_nginxOptional"
         ;;
         17 )
@@ -8342,7 +8567,7 @@ function start_menu(){
         ;;
         77 )
             vps_netflixgo
-            vps_netflix_jin
+            vps_netflix2
         ;;
         80 )
             installPackage
