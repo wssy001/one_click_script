@@ -1776,7 +1776,7 @@ function installCloudreve(){
     echo
 
     ${sudoCmd} chown -R ${wwwUsername}:${wwwUsername} ${configCloudrevePath}
-    ${sudoCmd} chmod -R 771 ${configCloudrevePath}
+    ${sudoCmd} chmod -R 775 ${configCloudrevePath}
 
 
     cat > ${osSystemMdPath}cloudreve.service <<-EOF
@@ -1813,7 +1813,7 @@ EOF
     ${configCloudreveCommandFolder}/cloudreve -eject
 
     ${sudoCmd} chown -R ${wwwUsername}:${wwwUsername} ${configCloudrevePath}
-    ${sudoCmd} chmod -R 771 ${configCloudrevePath}
+    ${sudoCmd} chmod -R 775 ${configCloudrevePath}
 
 
     echo
@@ -1944,7 +1944,8 @@ function installWebServerNginx(){
 
         createUserWWW
         nginxUser="${wwwUsername} ${wwwUsername}"
-        
+
+
         if [ "$osRelease" == "centos" ]; then
             ${osSystemPackage} install -y nginx-mod-stream
         else
@@ -2412,15 +2413,15 @@ EOF
 
 
 
-    ${sudoCmd} chown -R ${wwwUsername}:${wwwUsername} ${configWebsiteFatherPath}
-    ${sudoCmd} chmod -R 774 ${configWebsiteFatherPath}
+    ${sudoCmd} chown -R ${wwwUsername}:${wwwUsername} ${configWebsitePath}
+    ${sudoCmd} chmod -R 774 ${configWebsitePath}
 
     # /var/lib/nginx/tmp/client_body /var/lib/nginx/tmp/proxy 权限问题
     mkdir -p "${nginxTempPath}/client_body"
     mkdir -p "${nginxTempPath}/proxy"
     mkdir -p "${nginxProxyTempPath}"
 
-    
+
     ${sudoCmd} chown -R ${wwwUsername}:${wwwUsername} ${nginxTempPath}
     ${sudoCmd} chmod -R 775 ${nginxTempPath}
 
@@ -3831,17 +3832,21 @@ function editXrayRConfig(){
 
 
 function installAiruAndNginx(){
+
+    systemctl stop xray.service
+    systemctl stop au.service
+
     isInstallNginx="true"
     configSSLCertPath="${configSSLCertPathV2board}"
-    getHTTPSCertificateStep1
+    #getHTTPSCertificateStep1
+
     configInstallNginxMode="airuniverse"
     installWebServerNginx
 
-
     sed -i 's/\"force_close_tls\": \?false/\"force_close_tls\": true/g' ${configAirUniverseConfigFilePath}
 
-    systemctl restart xray.service
-    airu restart
+    systemctl start xray.service
+    systemctl start au.service
 
 }
 
@@ -3932,7 +3937,7 @@ function downgradeXray(){
     green " 1. 不降级 使用最新版本"
 
     if [[ "${isAirUniverseVersionInput}" == "1" || "${isAirUniverseVersionInput}" == "2" ]]; then
-        green " 2. 1.7.3"
+        green " 2. 1.7.5"
         green " 3. 1.6.1"
         green " 4. 1.6.0"
         green " 5. 1.5.5"
@@ -3953,7 +3958,7 @@ function downgradeXray(){
     downloadXrayUrl="https://github.com/XTLS/Xray-core/releases/download/v${downloadXrayVersion}/Xray-linux-64.zip"
 
     if [[ "${isXrayVersionInput}" == "2" ]]; then
-        downloadXrayVersion="1.7.3"
+        downloadXrayVersion="1.7.5"
 
     elif [[ "${isXrayVersionInput}" == "3" ]]; then
         downloadXrayVersion="1.6.1"
@@ -4026,7 +4031,7 @@ function downgradeXray(){
         airu stop
         systemctl stop xray.service
 
-        chmod ugoa+rw ${configSSLCertPath}/*
+        chmod 666 ${configSSLCertPathV2board}/*
         
         systemctl start xray.service
         echo
@@ -4131,9 +4136,8 @@ EOM
 
             replaceAirUniverseConfigWARP "norestart"
             
-            chmod ugoa+rw ${configSSLCertPath}/${configSSLCertFullchainFilename}
-            chmod ugoa+rw ${configSSLCertPath}/${configSSLCertKeyFilename}
-            chmod ugoa+rw ${configSSLCertPath}/*
+            chmod 666 ${configSSLCertPathV2board}/*
+            
 
             # chown -R nobody:nogroup /var/log/v2ray
 
@@ -4161,30 +4165,17 @@ EOM
         echo
         green "是否安装 Nginx web服务器, 安装Nginx可以提高安全性"
         echo
-        read -r -p "是否安装 Nginx web服务器? 直接回车默认不安装, 请输入[y/N]:" isNginxAlistInstallInput
-        isNginxAlistInstallInput=${isNginxAlistInstallInput:-n}
+        read -r -p "是否安装 Nginx web服务器? 直接回车默认不安装, 请输入[y/N]:" isNginxAiruInstallInput
+        isNginxAiruInstallInput=${isNginxAiruInstallInput:-n}
 
-        if [[ "${isNginxAlistInstallInput}" == [Yy] ]]; then
-            isInstallNginx="true"
-            configSSLCertPath="${configSSLCertPathV2board}"
-            configInstallNginxMode="airuniverse"
-            installWebServerNginx
-
-            sed -i 's/\"force_close_tls\": \?false/\"force_close_tls\": true/g' ${configAirUniverseConfigFilePath}
-
-            systemctl restart xray.service
-            airu restart
+        if [[ "${isNginxAiruInstallInput}" == [Yy] ]]; then
+            installAiruAndNginx
         fi
-
-
 
     else
         manageAirUniverse
     fi
 
-
-
-    
 }
 
 
@@ -4472,59 +4463,59 @@ EOM
 
 
 
-    echo
-    echo
-    yellow " 某老姨子提供了可以解锁Netflix新加坡区的V2ray服务器, 已失效"
-    read -p "是否通过老姨子解锁Netflix新加坡区? 直接回车默认不解锁, 请输入[y/N]:" isV2rayUnlockGoNetflixInput
-    isV2rayUnlockGoNetflixInput=${isV2rayUnlockGoNetflixInput:-n}
+#     echo
+#     echo
+#     yellow " 某老姨子提供了可以解锁Netflix新加坡区的V2ray服务器, 已失效"
+#     read -p "是否通过老姨子解锁Netflix新加坡区? 直接回车默认不解锁, 请输入[y/N]:" isV2rayUnlockGoNetflixInput
+#     isV2rayUnlockGoNetflixInput=${isV2rayUnlockGoNetflixInput:-n}
 
-    v2rayConfigRouteGoNetflixInput=""
-    v2rayConfigOutboundV2rayGoNetflixServerInput=""
-    if [[ "${isV2rayUnlockGoNetflixInput}" == [Nn] ]]; then
-        echo
-    else
-        removeString="\"geosite:netflix\", "
-        V2rayUnlockVideoSiteRuleText=${V2rayUnlockVideoSiteRuleText#"$removeString"}
-        removeString2="\"geosite:disney\", "
-        V2rayUnlockVideoSiteRuleText=${V2rayUnlockVideoSiteRuleText#"$removeString2"}
-        read -r -d '' v2rayConfigRouteGoNetflixInput << EOM
-            {
-                "type": "field",
-                "outboundTag": "GoNetflix",
-                "domain": [ "geosite:netflix", "geosite:disney" ] 
-            },
-EOM
+#     v2rayConfigRouteGoNetflixInput=""
+#     v2rayConfigOutboundV2rayGoNetflixServerInput=""
+#     if [[ "${isV2rayUnlockGoNetflixInput}" == [Nn] ]]; then
+#         echo
+#     else
+#         removeString="\"geosite:netflix\", "
+#         V2rayUnlockVideoSiteRuleText=${V2rayUnlockVideoSiteRuleText#"$removeString"}
+#         removeString2="\"geosite:disney\", "
+#         V2rayUnlockVideoSiteRuleText=${V2rayUnlockVideoSiteRuleText#"$removeString2"}
+#         read -r -d '' v2rayConfigRouteGoNetflixInput << EOM
+#             {
+#                 "type": "field",
+#                 "outboundTag": "GoNetflix",
+#                 "domain": [ "geosite:netflix", "geosite:disney" ] 
+#             },
+# EOM
 
-        read -r -d '' v2rayConfigOutboundV2rayGoNetflixServerInput << EOM
-        {
-            "tag": "GoNetflix",
-            "protocol": "vmess",
-            "streamSettings": {
-                "network": "ws",
-                "security": "tls",
-                "tlsSettings": {
-                    "allowInsecure": false
-                },
-                "wsSettings": {
-                    "path": "ws"
-                }
-            },
-            "mux": {
-                "enabled": true,
-                "concurrency": 8
-            },
-            "settings": {
-                "vnext": [{
-                    "address": "free-sg-01.unblocknetflix.cf",
-                    "port": 443,
-                    "users": [
-                        { "id": "402d7490-6d4b-42d4-80ed-e681b0e6f1f9", "security": "auto", "alterId": 0 }
-                    ]
-                }]
-            }
-        },
-EOM
-    fi
+#         read -r -d '' v2rayConfigOutboundV2rayGoNetflixServerInput << EOM
+#         {
+#             "tag": "GoNetflix",
+#             "protocol": "vmess",
+#             "streamSettings": {
+#                 "network": "ws",
+#                 "security": "tls",
+#                 "tlsSettings": {
+#                     "allowInsecure": false
+#                 },
+#                 "wsSettings": {
+#                     "path": "ws"
+#                 }
+#             },
+#             "mux": {
+#                 "enabled": true,
+#                 "concurrency": 8
+#             },
+#             "settings": {
+#                 "vnext": [{
+#                     "address": "free-sg-01.unblocknetflix.cf",
+#                     "port": 443,
+#                     "users": [
+#                         { "id": "402d7490-6d4b-42d4-80ed-e681b0e6f1f9", "security": "auto", "alterId": 0 }
+#                     ]
+#                 }]
+#             }
+#         },
+# EOM
+#     fi
 
 
 
@@ -4620,11 +4611,6 @@ EOM
             }
         },
         {
-            "tag": "blackhole",
-            "protocol": "blackhole",
-            "settings": {}
-        },
-        {
             "tag": "blocked",
             "protocol": "blackhole",
             "settings": {
@@ -4689,7 +4675,7 @@ EOM
                 "protocol": [
                     "bittorrent"
                 ],
-                "outboundTag": "blackhole"
+                "outboundTag": "blocked"
             },
             {
                 "type": "field",
@@ -4700,7 +4686,7 @@ EOM
                     "fe80::/10",
                     "172.16.0.0/12"
                 ],
-                "outboundTag": "blackhole"
+                "outboundTag": "blocked"
             }
         ]
     }
@@ -4743,8 +4729,8 @@ EOF
     fi
 
 
-    chmod ugoa+rw ${configSSLCertPath}/${configSSLCertFullchainFilename}
-    chmod ugoa+rw ${configSSLCertPath}/${configSSLCertKeyFilename}
+    chmod 666 ${configSSLCertPathV2board}/*
+    # chmod ugoa+rw ${configSSLCertPathV2board}/${configSSLCertKeyFilename}
 
     # -z 为空
     if [[ -z $1 ]]; then

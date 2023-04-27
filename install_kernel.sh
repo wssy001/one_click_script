@@ -1786,8 +1786,12 @@ function installDebianUbuntuKernel(){
             # https://xanmod.org/
             
             
-            echo 'deb http://deb.xanmod.org releases main' > /etc/apt/sources.list.d/xanmod-kernel.list
-            wget -qO - https://dl.xanmod.org/gpg.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/xanmod-kernel.gpg add -
+            # echo 'deb http://deb.xanmod.org releases main' > /etc/apt/sources.list.d/xanmod-kernel.list
+            # wget -qO - https://dl.xanmod.org/gpg.key | sudo apt-key --keyring /etc/apt/trusted.gpg.d/xanmod-kernel.gpg add -
+
+            wget -qO - https://dl.xanmod.org/archive.key | sudo gpg --dearmor -o /usr/share/keyrings/xanmod-archive-keyring.gpg
+            echo 'deb [signed-by=/usr/share/keyrings/xanmod-archive-keyring.gpg] http://deb.xanmod.org releases main' | sudo tee /etc/apt/sources.list.d/xanmod-release.list
+
             ${sudoCmd} apt update -y
 
             listAvailableLinuxKernel "xanmod"
@@ -1800,6 +1804,10 @@ function installDebianUbuntuKernel(){
 
             if [ "${linuxKernelToInstallVersion}" = "5.15" ]; then
                 ${sudoCmd} apt install -y linux-xanmod-lts 
+            elif [ "${linuxKernelToInstallVersion}" = "6.2" ]; then
+                ${sudoCmd} apt install -y linux-xanmod-x64v3
+            elif [ "${linuxKernelToInstallVersion}" = "6.1" ]; then
+                ${sudoCmd} apt install -y linux-xanmod-lts-x64v3
             else
                 ${sudoCmd} apt install -y linux-xanmod
             fi
@@ -1812,12 +1820,18 @@ function installDebianUbuntuKernel(){
             if [ "${linuxKernelToInstallVersion}" = "5.10" ]; then
                 debianKernelVersion="5.10.0-0"
                 # linux-image-5.10.0-0.bpo.15-amd64
+            elif [ "${linuxKernelToInstallVersion}" = "5.19" ]; then
+                debianKernelVersion="5.16.0-0"
+                if [ "${osReleaseVersionNo}" = "11" ]; then
+                    debianKernelVersion="5.19.0-0"
+                fi
+
             elif [ "${linuxKernelToInstallVersion}" = "4.19" ]; then
                 debianKernelVersion="4.19.0-21"
             else
-                debianKernelVersion="5.16.0-0"
+                debianKernelVersion="6.1.0-0"
                 if [ "${osReleaseVersionNo}" = "11" ]; then
-                    debianKernelVersion="5.18.0-0"
+                    debianKernelVersion="6.1.0-0"
                 fi
             fi
 
@@ -1904,7 +1918,7 @@ function installDebianUbuntuKernel(){
             ${sudoCmd} dpkg -i libssl1.1_1.1.0g-2ubuntu4_amd64.deb 
         fi
         
-        if [[ "${linuxKernelToInstallVersion}" == "5.18" || "${linuxKernelToInstallVersion}" == "5.10.118" || "${linuxKernelToInstallVersion}" == "5.15" ]]; then 
+        if [[ "${linuxKernelToInstallVersion}" == "5.19" || "${linuxKernelToInstallVersion}" == "5.10.118" || "${linuxKernelToInstallVersion}" == "5.15" ]]; then 
             if [ -f "${userHomePath}/libssl3_3.0.2-0ubuntu1_amd64.deb" ]; then
                 green "文件已存在, 不需要下载, 文件原下载地址: http://mirrors.kernel.org/ubuntu/pool/main/o/openssl/libssl3_3.0.2-0ubuntu1_amd64.deb "
             else 
@@ -1947,6 +1961,16 @@ function installDebianUbuntuKernel(){
             # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.11.12/amd64/
             # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.11.12/amd64/linux-image-unsigned-5.11.12-051112-generic_5.11.12-051112.202104071432_amd64.deb
             # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.11.12/amd64/linux-modules-5.11.12-051112-generic_5.11.12-051112.202104071432_amd64.deb
+
+            # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.19.17/
+            # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.19.17/amd64/linux-image-unsigned-5.19.17-051917-generic_5.19.17-051917.202210240939_amd64.deb
+            # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.19.17/amd64/linux-headers-5.19.17-051917-generic_5.19.17-051917.202210240939_amd64.deb
+            # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.19.17/amd64/linux-modules-5.19.17-051917-generic_5.19.17-051917.202210240939_amd64.deb
+
+            # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.19.17/arm64/linux-image-unsigned-5.19.17-051917-generic_5.19.17-051917.202210240939_arm64.deb
+            # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.19.17/arm64/linux-headers-5.19.17-051917-generic_5.19.17-051917.202210240939_arm64.deb
+            # https://kernel.ubuntu.com/~kernel-ppa/mainline/v5.19.17/arm64/linux-modules-5.19.17-051917-generic_5.19.17-051917.202210240939_arm64.deb
+
 
             getLatestUbuntuKernelVersion
 
@@ -3189,7 +3213,7 @@ function start_menu(){
 
     if [[ ${configLanguage} == "cn" ]] ; then
     green " =================================================="
-    green " Linux 内核 一键安装脚本 | 2022-8-15 | 系统支持：centos7+ / debian10+ / ubuntu16.04+"
+    green " Linux 内核 一键安装脚本 | 2023-4-10 | 系统支持：centos7+ / debian10+ / ubuntu16.04+"
     green " Linux 内核 4.9 以上都支持开启BBR, 如要开启BBR Plus 则需要安装支持BBR Plus的内核 "
     red " 在任何生产环境中请谨慎使用此脚本, 升级内核有风险, 请做好备份！在某些VPS会导致无法启动! "
     green " =================================================="
@@ -3245,26 +3269,25 @@ function start_menu(){
         if [[ "${osRelease}" == "debian" ]]; then
 
             if [[ "${osReleaseVersion}" == "10" ]]; then
-                green " 41. 安装 最新版本LTS内核 5.10 LTS, 通过 Debian 官方源安装"
-
+                green " 41. 安装 LTS内核 5.10 LTS, 通过 Debian 官方源安装"
             fi
             if [[ "${osReleaseVersion}" == "11" ]]; then
-                green " 41. 安装 最新版本LTS内核 5.10 LTS, 通过 Debian 官方源安装"
-                green " 42. 安装 最新版本内核 5.18 或更高, 通过 Debian 官方源安装"
+                green " 41. 安装 LTS内核 5.10 LTS, 通过 Debian 官方源安装"
+                green " 42. 安装 内核 5.19, 通过 Debian 官方源安装"
+                green " 43. 安装 最新版本内核 6.1 或更高, 通过 Debian 官方源安装"
             fi
             echo
         fi
-
 
         green " 44. 安装 内核 4.19 LTS, 通过 Ubuntu kernel mainline 安装"
         green " 45. 安装 内核 5.4 LTS, 通过 Ubuntu kernel mainline 安装"
         green " 46. 安装 内核 5.10 LTS, 通过 Ubuntu kernel mainline 安装"
         green " 47. 安装 内核 5.15, 通过 Ubuntu kernel mainline 安装"
-        green " 48. 安装 最新版本内核 5.18, 通过 Ubuntu kernel mainline 安装"
-
+        green " 48. 安装 内核 5.19, 通过 Ubuntu kernel mainline 安装"
+        green " 49. 安装 最新版本内核 6.1, 通过 Ubuntu kernel mainline 安装"
         echo
-        green " 51. 安装 XanMod Kernel 内核 5.15 LTS, 官方源安装 "    
-        green " 52. 安装 XanMod Kernel 内核 5.17, 官方源安装 "   
+        green " 51. 安装 XanMod Kernel 内核 6.1 LTS, 官方源安装 "    
+        green " 52. 安装 XanMod Kernel 内核 6.2, 官方源安装 "   
         
     fi
 
@@ -3286,7 +3309,7 @@ function start_menu(){
     else
 
     green " =================================================="
-    green " Linux kernel install script | 2022-8-15 | OS support：centos7+ / debian10+ / ubuntu16.04+"
+    green " Linux kernel install script | 2023-4-10 | OS support：centos7+ / debian10+ / ubuntu16.04+"
     green " Enable bbr require linux kernel higher than 4.9. Enable bbr plus require special bbr plus kernel "
     red " Please use this script with caution in production. Backup your data first! Upgrade linux kernel will cause VPS unable to boot sometimes."
     green " =================================================="
@@ -3339,24 +3362,26 @@ function start_menu(){
     else
         if [[ "${osRelease}" == "debian" ]]; then
             if [[ "${osReleaseVersion}" == "10" ]]; then
-                green " 41. Install latest LTS linux kernel, 5.10 LTS, from Debian repository source"
+                green " 41. Install LTS linux kernel, 5.10 LTS, from Debian repository source"
             fi
             
             if [[ "${osReleaseVersion}" == "11" ]]; then
-                green " 41. Install latest LTS linux kernel, 5.10 LTS, from Debian repository source"
-                green " 42. Install latest linux kernel, 5.18 or higher, from Debian repository source"
+                green " 41. Install LTS linux kernel, 5.10 LTS, from Debian repository source"
+                green " 42. Install linux kernel, 5.19, from Debian repository source"
+                green " 43. Install latest linux kernel, 6.1 or higher, from Debian repository source"
             fi
             echo
         fi
 
-        green " 44. Install linux kernel 4.19 LTS, download and install from Ubuntu kernel mainline"
-        green " 45. Install linux kernel 5.4 LTS, download and install from Ubuntu kernel mainline"
-        green " 46. Install linux kernel 5.10 LTS, download and install from Ubuntu kernel mainline"
-        green " 47. Install linux kernel 5.15, download and install from Ubuntu kernel mainline"
-        green " 48. Install latest linux kernel 5.18, download and install from Ubuntu kernel mainline"
-        echo
-        green " 51. Install XanMod kernel 5.15 LTS, from XanMod repository source "    
-        green " 52. Install XanMod kernel 5.17, from XanMod repository source "  
+    green " 44. Install linux kernel 4.19 LTS, download and install from Ubuntu kernel mainline"
+    green " 45. Install linux kernel 5.4 LTS, download and install from Ubuntu kernel mainline"
+    green " 46. Install linux kernel 5.10 LTS, download and install from Ubuntu kernel mainline"
+    green " 47. Install linux kernel 5.15, download and install from Ubuntu kernel mainline"
+    green " 48. Install linux kernel 5.19, download and install from Ubuntu kernel mainline"
+    green " 49. Install latest linux kernel 6.1, download and install from Ubuntu kernel mainline"
+    echo
+    green " 51. Install XanMod kernel 6.1 LTS, from XanMod repository source "    
+    green " 52. Install XanMod kernel 6.2, from XanMod repository source "  
     fi
 
     echo
@@ -3487,15 +3512,15 @@ function start_menu(){
             installKernel
         ;;
         42 )
-            linuxKernelToInstallVersion="5.18"
+            linuxKernelToInstallVersion="5.19"
             isInstallFromRepo="yes"
             installKernel
-        ;; 
+        ;;
         43 )
-            linuxKernelToInstallVersion="4.19"
+            linuxKernelToInstallVersion="6.1"
             isInstallFromRepo="yes"
             installKernel
-        ;;        
+        ;;
         44 ) 
             linuxKernelToInstallVersion="4.19"
             installKernel
@@ -3513,17 +3538,21 @@ function start_menu(){
             installKernel
         ;;
         48 )
-            linuxKernelToInstallVersion="5.18"
+            linuxKernelToInstallVersion="5.19"
             installKernel
-        ;;        
+        ;;
+        49 )
+            linuxKernelToInstallVersion="6.1"
+            installKernel
+        ;;
         51 )
-            linuxKernelToInstallVersion="5.15"
+            linuxKernelToInstallVersion="6.1"
             linuxKernelToBBRType="xanmod"
             isInstallFromRepo="yes"
             installKernel
         ;;
         52 )
-            linuxKernelToInstallVersion="5.17"
+            linuxKernelToInstallVersion="6.2"
             linuxKernelToBBRType="xanmod"
             isInstallFromRepo="yes"
             installKernel
